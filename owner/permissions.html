@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SaaS Owner Console - Role Permissions</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { background-color: #FDFBF7; color: #1D1E2C; }
+    .accent-brand { accent-color: #C84B31; }
+  </style>
+</head>
+<body class="p-6 md:p-12">
+  <div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <header class="flex justify-between items-center mb-8 pb-4 border-b border-gray-200">
+      <div>
+        <h1 class="text-2xl font-bold">SaaS Policy Console</h1>
+        <p class="text-sm text-gray-500">Configure global module permissions per client role</p>
+      </div>
+      <a href="../hub.html" class="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 transition">Back to Hub</a>
+    </header>
+
+    <!-- Permission Matrix Card -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div id="statusAlert" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b border-gray-200 bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+              <th class="p-4">Module Name</th>
+              <th class="p-4">Client Admin</th>
+              <th class="p-4">HR Manager</th>
+              <th class="p-4">Tech Support</th>
+              <th class="p-4">Line Manager</th>
+              <th class="p-4">Employee</th>
+            </tr>
+          </thead>
+          <tbody id="matrixTable" class="divide-y divide-gray-100 text-sm">
+            <!-- Dynamic Permission Matrix Rows -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-6 flex justify-end">
+        <button id="saveBtn" class="bg-[#C84B31] text-white px-6 py-2.5 rounded-lg font-medium hover:bg-[#A33A24] transition">
+          Save Policy Changes
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../config.js"></script>
+  <script>
+    let roles = [];
+    let modules = [];
+    let permissionsMap = {}; // Key format: "roleId_moduleId" -> boolean
+
+    async function initConsole() {
+      // 1. Verify Super Admin Access
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (!user) { window.location.href = '../index.html'; return; }
+
+      // 2. Load Roles and Modules
+      const [rolesRes, modulesRes, permsRes] = await Promise.all([
+        supabaseClient.from('saas_roles').select('*').eq('is_system_role', false),
+        supabaseClient.from('saas_modules').select('*').order('module_name'),
+        supabaseClient.from('saas_role_permissions').select('*')
+      ]);
+
+      roles = rolesRes.data || [];
+      modules = modulesRes.data || [];
+      
+      // Populate local state lookup map
+      (permsRes.data || []).forEach(p => {
+        permissionsMap[`${p.role_id}_${p.module_id}`] = p.can_read;
+      });
+
+      renderMatrix();
+    }
+
+    function renderMatrix() {
+      const tbody = document.getElementById('matrixTable');
+      tbody.innerHTML = '';
+
+      modules.forEach(mod => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50/50';
+
+        let html = `<td class="p-4 font-semibold text-gray-800">${mod.module_name} <span class="block text-xs font-normal text-gray-400">${mod.module_code}</span></td>`;
+
+        roles.forEach(role => {
+          const key = `${role.role_id}_${mod.module_id}`;
+          const isChecked = !!permissionsMap[key];
+
+          html += `
+            <td class="p-4">
+              <input type="checkbox" 
+                class="w-5 h-5 accent-brand rounded border-gray-300 cursor-pointer" 
+                data-role="${role.role_id}" 
+                data-module="${mod.module_id}" 
+                ${isChecked ? 'checked' : ''} />
+            </td>
+          `;
+        });
+
+        row.innerHTML = html;
+        tbody.appendChild(row);
+      });
+    }
+
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      const checkboxes = document.querySelectorAll('#matrixTable input[type="checkbox"]');
+      const updates = [];
+
+      checkboxes.forEach(cb => {
+        const role_id = cb.getAttribute('data-role');
+        const module_id = cb.getAttribute('data-module');
+        const can_read = cb.checked;
+
+        updates.push({
+          role_id,
+          module_id,
+          can_read,
+          can_write: can_read
+        });
+      });
+
+      // Upsert into saas_role_permissions
+      const { error } = await supabaseClient
+        .from('saas_role_permissions')
+        .upsert(updates, { onConflict: 'role_id,module_id' });
+
+      const alertDiv = document.getElementById('statusAlert');
+      alertDiv.classList.remove('hidden', 'bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800');
+
+      if (error) {
+        alertDiv.className = 'mb-4 p-3 rounded-lg text-sm bg-red-100 text-red-800';
+        alertDiv.textContent = `Error saving policy: ${error.message}`;
+      } else {
+        alertDiv.className = 'mb-4 p-3 rounded-lg text-sm bg-green-100 text-green-800';
+        alertDiv.textContent = 'Policy matrix successfully updated!';
+      }
+    });
+
+    initConsole();
+  </script>
+</body>
+</html>

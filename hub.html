@@ -3,77 +3,142 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hub - Project VO-SaaS</title>
+  <title>VO-SaaS - Enterprise Hub</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    body { background-color: #FDFBF7; color: #1D1E2C; }
+    body { background-color: #F8F9FA; color: #1E293B; font-family: system-ui, -apple-system, sans-serif; }
+    .card-shadow { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03); }
+    .accent-coral { background-color: #C84B31; }
   </style>
 </head>
-<body class="p-6 md:p-12">
-  <div class="max-w-6xl mx-auto">
-    <header class="flex justify-between items-center mb-10 pb-4 border-b border-gray-200">
+<body class="min-h-screen flex flex-col">
+  <!-- Navigation Header -->
+  <header class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-10">
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-xl accent-coral text-white font-bold flex items-center justify-center text-lg">VO</div>
       <div>
-        <h1 class="text-2xl font-bold">Employee Module Portal</h1>
-        <p class="text-sm text-gray-500">Access your subscribed corporate tools</p>
+        <h1 class="font-bold text-slate-900 text-base leading-tight" id="companyDisplay">Acme Corp</h1>
+        <p class="text-xs text-slate-500" id="userRoleDisplay">Loading role...</p>
       </div>
-      <button id="logoutBtn" class="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100">Sign Out</button>
-    </header>
-
-    <div id="moduleGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <!-- Dynamic modules render here -->
     </div>
-  </div>
+    <div class="flex items-center space-x-4">
+      <span class="text-sm font-medium text-slate-700 hidden sm:inline" id="userNameDisplay">User</span>
+      <button id="logoutBtn" class="text-xs text-slate-500 hover:text-red-600 px-3 py-1.5 border border-slate-200 rounded-lg transition">Sign Out</button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8 space-y-8">
+    
+    <!-- Top Stat Summary Bar -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 card-shadow flex justify-between items-center">
+        <div>
+          <p class="text-xs text-slate-500 font-medium">Annual Leave Balance</p>
+          <h3 class="text-2xl font-bold text-slate-800 mt-1">12 Days</h3>
+        </div>
+        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">🌴</div>
+      </div>
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 card-shadow flex justify-between items-center">
+        <div>
+          <p class="text-xs text-slate-500 font-medium">Sick Leave Remaining</p>
+          <h3 class="text-2xl font-bold text-slate-800 mt-1">10 Days</h3>
+        </div>
+        <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">🩺</div>
+      </div>
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 card-shadow flex justify-between items-center">
+        <div>
+          <p class="text-xs text-slate-500 font-medium">Team Approvals Pending</p>
+          <h3 class="text-2xl font-bold font-mono text-slate-800 mt-1" id="pendingApprovalsCount">0</h3>
+        </div>
+        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">⏳</div>
+      </div>
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 card-shadow flex justify-between items-center">
+        <div>
+          <p class="text-xs text-slate-500 font-medium">Compliance Health</p>
+          <h3 class="text-2xl font-bold text-emerald-600 mt-1">100%</h3>
+        </div>
+        <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">🛡️</div>
+      </div>
+    </section>
+
+    <!-- App Modules Grid -->
+    <section>
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold text-slate-900">Your Enterprise Apps</h2>
+        <span class="text-xs text-slate-400">Based on assigned role permissions</span>
+      </div>
+      
+      <div id="moduleGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Dynamic Module Cards Render Here -->
+      </div>
+    </section>
+  </main>
 
   <script src="config.js"></script>
   <script>
     async function loadHub() {
-      // Confirm authenticated user
       const { data: { user } } = await supabaseClient.auth.getUser();
-      if (!user) {
-        window.location.href = 'index.html';
-        return;
+      if (!user) { window.location.href = 'index.html'; return; }
+
+      // Get user profile details
+      const { data: profile } = await supabaseClient
+        .from('saas_users')
+        .select('full_name, email, saas_tenants(company_name)')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profile) {
+        document.getElementById('userNameDisplay').textContent = profile.full_name || profile.email;
+        document.getElementById('companyDisplay').textContent = profile.saas_tenants?.company_name || 'VO-SaaS System';
       }
 
-      // Call the Option 2 Postgres Function
-      const { data: modules, error } = await supabaseClient.rpc('get_user_modules');
+      // Query allowed modules using our stored procedure
+      const { data: userModules, error } = await supabaseClient.rpc('get_user_modules');
 
+      const allModules = [
+        { code: 'MODULE_LEAVE_APP', name: 'Leave Application & Approvals', icon: '📅', url: 'modules/leave.html', desc: 'Apply for leave, view entitlement balances, and approve direct report requests.' },
+        { code: 'MODULE_KPI_PERF', name: 'KPI & Performance Management', icon: '📊', url: '#', desc: 'Track quarterly objectives, self-assess performance, and conduct manager reviews.' },
+        { code: 'MODULE_HR_ONBOARD', name: 'HR Employee Onboarding', icon: '👤', url: 'modules/hr-onboard.html', desc: 'Provision new employee profiles, assign corporate roles, and send onboarding tasks.' },
+        { code: 'MODULE_TECH_SUPPORT', name: 'Tech Support Console', icon: '🛠️', url: '#', desc: 'Reset staff credentials, manage system configurations, and audit device logs.' },
+        { code: 'MODULE_OWNER_CONSOLE', name: 'SaaS Policy & Permissions Matrix', icon: '🔑', url: 'owner/permissions.html', desc: 'Configure tenant subscription modules and edit role-level access policies live.' }
+      ];
+
+      const allowedCodes = (userModules || []).map(m => m.module_code);
       const grid = document.getElementById('moduleGrid');
       grid.innerHTML = '';
 
-      if (error) {
-        grid.innerHTML = `<p class="text-red-500">Error loading modules: ${error.message}</p>`;
-        return;
-      }
-
-      modules.forEach(mod => {
-        const isActive = mod.access_status === 'ACTIVE';
-        
+      allModules.forEach(mod => {
+        const isActive = allowedCodes.includes(mod.code);
         const card = document.createElement('div');
-        card.className = `p-6 rounded-xl border transition-all duration-200 ${
+        card.className = `p-6 rounded-2xl border transition card-shadow flex flex-col justify-between ${
           isActive 
-            ? 'bg-white border-gray-200 shadow-sm hover:shadow-md cursor-pointer' 
-            : 'bg-gray-100 border-gray-200 opacity-60 cursor-not-allowed'
+            ? 'bg-white border-slate-200 hover:border-slate-300' 
+            : 'bg-slate-50 border-slate-200 opacity-60'
         }`;
 
         card.innerHTML = `
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold text-lg ${isActive ? 'text-gray-800' : 'text-gray-400'}">${mod.module_name}</h3>
-            <span class="text-xs font-semibold px-2 py-1 rounded ${
-              isActive ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'
-            }">
-              ${mod.access_status}
-            </span>
+          <div>
+            <div class="flex justify-between items-start mb-4">
+              <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
+                isActive ? 'bg-slate-100' : 'bg-slate-200'
+              }">${mod.icon}</div>
+              <span class="text-xs px-2.5 py-1 rounded-full font-semibold ${
+                isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+              }">
+                ${isActive ? 'Active' : 'Locked'}
+              </span>
+            </div>
+            <h3 class="font-bold text-slate-900 text-base mb-1">${mod.name}</h3>
+            <p class="text-xs text-slate-500 leading-relaxed mb-6">${mod.desc}</p>
           </div>
-          <p class="text-sm ${isActive ? 'text-gray-600' : 'text-gray-400'} mb-4">${mod.description || ''}</p>
+          ${
+            isActive 
+              ? `<a href="${mod.url}" class="w-full text-center py-2.5 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition">Launch App</a>`
+              : `<button disabled class="w-full text-center py-2.5 bg-slate-200 text-slate-400 rounded-xl text-xs font-semibold cursor-not-allowed">Access Restricted</button>`
+          }
         `;
-
-        if (isActive) {
-          card.addEventListener('click', () => {
-            window.location.href = mod.route_path;
-          });
-        }
-
         grid.appendChild(card);
       });
     }

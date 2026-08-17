@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leave Application & Approvals</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { background-color: #F8F9FA; color: #1E293B; }
+    .accent-coral { background-color: #C84B31; }
+  </style>
+</head>
+<body class="p-6 md:p-10 max-w-6xl mx-auto space-y-8">
+  
+  <!-- Header -->
+  <header class="flex justify-between items-center pb-4 border-b border-slate-200">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900">Leave Management System</h1>
+      <p class="text-xs text-slate-500">Apply for time off and review team approval requests</p>
+    </div>
+    <a href="../hub.html" class="px-4 py-2 text-xs font-semibold border border-slate-300 rounded-lg hover:bg-slate-100 transition">Back to Hub</a>
+  </header>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    
+    <!-- Column 1: Apply Leave Form -->
+    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">Submit Request</h2>
+      
+      <form id="leaveForm" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Leave Category</label>
+          <select id="leaveType" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900">
+            <option value="Annual">Annual Leave (12 left)</option>
+            <option value="Sick">Sick Leave (10 left)</option>
+            <option value="Unpaid">Unpaid Leave</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Start Date</label>
+            <input type="date" id="startDate" required class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">End Date</label>
+            <input type="date" id="endDate" required class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Reason / Notes</label>
+          <textarea id="reason" rows="3" placeholder="Brief details regarding leave..." class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"></textarea>
+        </div>
+
+        <button type="submit" class="w-full py-2.5 accent-coral text-white rounded-xl text-xs font-bold hover:opacity-90 transition">
+          Submit Leave Request
+        </button>
+      </form>
+    </div>
+
+    <!-- Column 2 & 3: History & Manager Approvals -->
+    <div class="lg:col-span-2 space-y-8">
+      
+      <!-- Manager Approval Queue (Visible to Admins & Managers) -->
+      <div id="managerSection" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+          <h2 class="text-lg font-bold text-slate-900">Team Pending Approvals</h2>
+          <span class="text-xs bg-amber-100 text-amber-800 font-bold px-2.5 py-0.5 rounded-full">Manager Action Required</span>
+        </div>
+        
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase">
+                <th class="p-3">Applicant</th>
+                <th class="p-3">Type</th>
+                <th class="p-3">Dates</th>
+                <th class="p-3">Action</th>
+              </tr>
+            </thead>
+            <tbody id="approvalsTable" class="divide-y divide-slate-100">
+              <!-- Pending requests loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- My Personal Leave Requests History -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">My Request History</h2>
+        
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase">
+                <th class="p-3">Category</th>
+                <th class="p-3">Dates</th>
+                <th class="p-3">Days</th>
+                <th class="p-3">Status</th>
+              </tr>
+            </thead>
+            <tbody id="historyTable" class="divide-y divide-slate-100">
+              <!-- User history loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="../config.js"></script>
+  <script>
+    let currentUser = null;
+    let tenantId = null;
+
+    async function initLeaveModule() {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (!user) { window.location.href = '../index.html'; return; }
+      currentUser = user;
+
+      // Fetch Tenant
+      const { data: profile } = await supabaseClient
+        .from('saas_users')
+        .select('tenant_id')
+        .eq('user_id', user.id)
+        .single();
+      
+      tenantId = profile?.tenant_id;
+
+      loadPersonalHistory();
+      loadPendingApprovals();
+    }
+
+    // Submit Leave
+    document.getElementById('leaveForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const leave_type = document.getElementById('leaveType').value;
+      const start_date = document.getElementById('startDate').value;
+      const end_date = document.getElementById('endDate').value;
+      const reason = document.getElementById('reason').value;
+
+      const d1 = new Date(start_date);
+      const d2 = new Date(end_date);
+      const total_days = Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+
+      const { error } = await supabaseClient.from('leave_requests').insert([{
+        tenant_id: tenantId,
+        user_id: currentUser.id,
+        leave_type,
+        start_date,
+        end_date,
+        total_days,
+        reason,
+        status: 'PENDING'
+      }]);
+
+      if (error) { alert('Error submitting leave: ' + error.message); } 
+      else { 
+        document.getElementById('leaveForm').reset();
+        loadPersonalHistory();
+        loadPendingApprovals();
+      }
+    });
+
+    // Load History
+    async function loadPersonalHistory() {
+      const { data } = await supabaseClient
+        .from('leave_requests')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false });
+
+      const tbody = document.getElementById('historyTable');
+      tbody.innerHTML = '';
+
+      (data || []).forEach(r => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="p-3 font-semibold text-slate-800">${r.leave_type}</td>
+          <td class="p-3">${r.start_date} to ${r.end_date}</td>
+          <td class="p-3 font-mono">${r.total_days}d</td>
+          <td class="p-3">
+            <span class="px-2 py-0.5 rounded-md font-bold text-[10px] ${
+              r.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
+              r.status === 'REJECTED' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
+            }">${r.status}</span>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // Load Manager Approvals Queue
+    async function loadPendingApprovals() {
+      const { data } = await supabaseClient
+        .from('leave_requests')
+        .select('*, saas_users(full_name, email)')
+        .eq('status', 'PENDING')
+        .order('created_at', { ascending: false });
+
+      const tbody = document.getElementById('approvalsTable');
+      tbody.innerHTML = '';
+
+      (data || []).forEach(r => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="p-3 font-medium">${r.saas_users?.full_name || r.saas_users?.email}</td>
+          <td class="p-3 font-semibold">${r.leave_type}</td>
+          <td class="p-3">${r.start_date} (${r.total_days}d)</td>
+          <td class="p-3 space-x-1">
+            <button onclick="updateStatus('${r.request_id}', 'APPROVED')" class="px-2.5 py-1 bg-emerald-600 text-white font-bold rounded hover:bg-emerald-700">Approve</button>
+            <button onclick="updateStatus('${r.request_id}', 'REJECTED')" class="px-2.5 py-1 bg-red-600 text-white font-bold rounded hover:bg-red-700">Reject</button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    async function updateStatus(requestId, newStatus) {
+      await supabaseClient
+        .from('leave_requests')
+        .update({ status: newStatus, reviewer_id: currentUser.id })
+        .eq('request_id', requestId);
+
+      loadPendingApprovals();
+      loadPersonalHistory();
+    }
+
+    initLeaveModule();
+  </script>
+</body>
+</html>
