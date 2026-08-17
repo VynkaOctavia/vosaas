@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Leave Application & Approvals</title>
+  <title>Leave Management System</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -17,23 +17,23 @@
   <header class="flex justify-between items-center pb-4 border-b border-slate-200">
     <div>
       <h1 class="text-2xl font-bold text-slate-900">Leave Management System</h1>
-      <p class="text-xs text-slate-500">Apply for time off and review team approval requests</p>
+      <p class="text-xs text-slate-500" id="roleSubtitle">Loading access rights...</p>
     </div>
     <a href="../hub.html" class="px-4 py-2 text-xs font-semibold border border-slate-300 rounded-lg hover:bg-slate-100 transition">Back to Hub</a>
   </header>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
     
-    <!-- Column 1: Apply Leave Form -->
+    <!-- Apply Leave Form (Visible to Everyone) -->
     <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
       <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">Submit Request</h2>
       
       <form id="leaveForm" class="space-y-4">
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Leave Category</label>
-          <select id="leaveType" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900">
-            <option value="Annual">Annual Leave (12 left)</option>
-            <option value="Sick">Sick Leave (10 left)</option>
+          <select id="leaveType" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white">
+            <option value="Annual">Annual Leave</option>
+            <option value="Sick">Sick Leave</option>
             <option value="Unpaid">Unpaid Leave</option>
           </select>
         </div>
@@ -41,17 +41,17 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Start Date</label>
-            <input type="date" id="startDate" required class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+            <input type="date" id="startDate" required class="w-full border border-slate-300 rounded-lg p-2 text-sm">
           </div>
           <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">End Date</label>
-            <input type="date" id="endDate" required class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+            <input type="date" id="endDate" required class="w-full border border-slate-300 rounded-lg p-2 text-sm">
           </div>
         </div>
 
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Reason / Notes</label>
-          <textarea id="reason" rows="3" placeholder="Brief details regarding leave..." class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"></textarea>
+          <textarea id="reason" rows="3" placeholder="Details..." class="w-full border border-slate-300 rounded-lg p-2.5 text-sm"></textarea>
         </div>
 
         <button type="submit" class="w-full py-2.5 accent-coral text-white rounded-xl text-xs font-bold hover:opacity-90 transition">
@@ -60,36 +60,36 @@
       </form>
     </div>
 
-    <!-- Column 2 & 3: History & Manager Approvals -->
+    <!-- Right Side: History & Conditional Approvals Queue -->
     <div class="lg:col-span-2 space-y-8">
       
-      <!-- Manager Approval Queue (Visible to Admins & Managers) -->
-      <div id="managerSection" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <!-- Manager Approval Queue (HIDDEN BY DEFAULT for Individual Contributors) -->
+      <div id="managerSection" class="hidden bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-          <h2 class="text-lg font-bold text-slate-900">Team Pending Approvals</h2>
-          <span class="text-xs bg-amber-100 text-amber-800 font-bold px-2.5 py-0.5 rounded-full">Manager Action Required</span>
+          <h2 class="text-lg font-bold text-slate-900">Direct Reports Approval Queue</h2>
+          <span class="text-xs bg-amber-100 text-amber-800 font-bold px-2.5 py-0.5 rounded-full">Manager Panel</span>
         </div>
         
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse text-xs">
             <thead>
               <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase">
-                <th class="p-3">Applicant</th>
+                <th class="p-3">Team Member</th>
                 <th class="p-3">Type</th>
                 <th class="p-3">Dates</th>
-                <th class="p-3">Action</th>
+                <th class="p-3">Actions</th>
               </tr>
             </thead>
             <tbody id="approvalsTable" class="divide-y divide-slate-100">
-              <!-- Pending requests loaded dynamically -->
+              <!-- Rendered for managers -->
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- My Personal Leave Requests History -->
+      <!-- Individual Request History -->
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">My Request History</h2>
+        <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">My Leave History</h2>
         
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse text-xs">
@@ -102,7 +102,7 @@
               </tr>
             </thead>
             <tbody id="historyTable" class="divide-y divide-slate-100">
-              <!-- User history loaded dynamically -->
+              <!-- Rendered dynamically -->
             </tbody>
           </table>
         </div>
@@ -121,17 +121,27 @@
       if (!user) { window.location.href = '../index.html'; return; }
       currentUser = user;
 
-      // Fetch Tenant
-      const { data: profile } = await supabaseClient
-        .from('saas_users')
-        .select('tenant_id')
-        .eq('user_id', user.id)
-        .single();
-      
-      tenantId = profile?.tenant_id;
+      // 1. Fetch user's tenant & check if they have direct reports
+      const [profileRes, directReportsRes] = await Promise.all([
+        supabaseClient.from('saas_users').select('tenant_id').eq('user_id', user.id).single(),
+        supabaseClient.from('saas_users').select('user_id').eq('manager_id', user.id)
+      ]);
+
+      tenantId = profileRes.data?.tenant_id;
+      const directReports = directReportsRes.data || [];
+      const hasDirectReports = directReports.length > 0;
+
+      const subtitle = document.getElementById('roleSubtitle');
+
+      if (hasDirectReports) {
+        subtitle.textContent = `People Manager (${directReports.length} direct report${directReports.length > 1 ? 's' : ''})`;
+        document.getElementById('managerSection').classList.remove('hidden');
+        loadTeamApprovals(directReports.map(r => r.user_id));
+      } else {
+        subtitle.textContent = 'Individual Contributor Access';
+      }
 
       loadPersonalHistory();
-      loadPendingApprovals();
     }
 
     // Submit Leave
@@ -146,7 +156,7 @@
       const d2 = new Date(end_date);
       const total_days = Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
 
-      const { error } = await supabaseClient.from('leave_requests').insert([{
+      await supabaseClient.from('leave_requests').insert([{
         tenant_id: tenantId,
         user_id: currentUser.id,
         leave_type,
@@ -157,15 +167,11 @@
         status: 'PENDING'
       }]);
 
-      if (error) { alert('Error submitting leave: ' + error.message); } 
-      else { 
-        document.getElementById('leaveForm').reset();
-        loadPersonalHistory();
-        loadPendingApprovals();
-      }
+      document.getElementById('leaveForm').reset();
+      loadPersonalHistory();
     });
 
-    // Load History
+    // Personal History
     async function loadPersonalHistory() {
       const { data } = await supabaseClient
         .from('leave_requests')
@@ -179,7 +185,7 @@
       (data || []).forEach(r => {
         const row = document.createElement('tr');
         row.innerHTML = `
-          <td class="p-3 font-semibold text-slate-800">${r.leave_type}</td>
+          <td class="p-3 font-semibold">${r.leave_type}</td>
           <td class="p-3">${r.start_date} to ${r.end_date}</td>
           <td class="p-3 font-mono">${r.total_days}d</td>
           <td class="p-3">
@@ -193,18 +199,24 @@
       });
     }
 
-    // Load Manager Approvals Queue
-    async function loadPendingApprovals() {
+    // Manager Team Approvals Queue
+    async function loadTeamApprovals(reportUserIds) {
       const { data } = await supabaseClient
         .from('leave_requests')
         .select('*, saas_users(full_name, email)')
+        .in('user_id', reportUserIds)
         .eq('status', 'PENDING')
         .order('created_at', { ascending: false });
 
       const tbody = document.getElementById('approvalsTable');
       tbody.innerHTML = '';
 
-      (data || []).forEach(r => {
+      if (!data || data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-400">No pending leave requests from your team.</td></tr>`;
+        return;
+      }
+
+      data.forEach(r => {
         const row = document.createElement('tr');
         row.innerHTML = `
           <td class="p-3 font-medium">${r.saas_users?.full_name || r.saas_users?.email}</td>
@@ -225,8 +237,7 @@
         .update({ status: newStatus, reviewer_id: currentUser.id })
         .eq('request_id', requestId);
 
-      loadPendingApprovals();
-      loadPersonalHistory();
+      initLeaveModule();
     }
 
     initLeaveModule();

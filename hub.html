@@ -3,78 +3,172 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VO-SaaS - Enterprise Hub</title>
+  <title>VO-SaaS - Compliance Portal</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    body { background-color: #F8F9FA; color: #1E293B; font-family: system-ui, -apple-system, sans-serif; }
-    .card-shadow { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03); }
+    body { background-color: #F4F6F8; color: #0F172A; font-family: system-ui, -apple-system, sans-serif; }
     .accent-coral { background-color: #C84B31; }
+    .card-border { border: 1px solid #E2E8F0; }
   </style>
 </head>
-<body class="min-h-screen flex flex-col">
-  <!-- Navigation Header -->
-  <header class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-10">
-    <div class="flex items-center space-x-3">
-      <div class="w-9 h-9 rounded-xl accent-coral text-white font-bold flex items-center justify-center text-lg">VO</div>
-      <div>
-        <h1 class="font-bold text-slate-900 text-base leading-tight" id="companyDisplay">Acme Corp</h1>
-        <p class="text-xs text-slate-500" id="userRoleDisplay">Loading role...</p>
-      </div>
-    </div>
-    <div class="flex items-center space-x-4">
-      <span class="text-sm font-medium text-slate-700 hidden sm:inline" id="userNameDisplay">User</span>
-      <button id="logoutBtn" class="text-xs text-slate-500 hover:text-red-600 px-3 py-1.5 border border-slate-200 rounded-lg transition">Sign Out</button>
-    </div>
-  </header>
+<body class="h-screen flex overflow-hidden">
 
-  <!-- Main Content -->
-  <main class="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8 space-y-8">
+  <!-- 1. LEFT NAVIGATION SIDEBAR -->
+  <aside class="w-64 bg-white border-r border-slate-200 flex flex-col justify-between p-5 hidden md:flex shrink-0">
+    <div class="space-y-8">
+      <!-- App Brand Logo -->
+      <div class="flex items-center space-x-3 px-2">
+        <div class="w-10 h-10 rounded-xl accent-coral text-white font-black text-xl flex items-center justify-center">VO</div>
+        <div>
+          <h1 class="font-extrabold text-slate-900 text-sm tracking-tight" id="companyDisplay">Acme Corp</h1>
+          <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Verified Client</span>
+        </div>
+      </div>
+
+      <!-- Nav Menu Links -->
+      <nav class="space-y-1">
+        <a href="#" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl bg-slate-100 text-slate-900 font-bold text-xs">
+          <span>📊</span> <span>Overview Dashboard</span>
+        </a>
+        <a href="modules/leave.html" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-50 font-medium text-xs transition">
+          <span>📅</span> <span>Leave & Attendance</span>
+        </a>
+        <a href="modules/hr-onboard.html" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-50 font-medium text-xs transition">
+          <span>👥</span> <span>Employee Onboarding</span>
+        </a>
+        <a href="owner/permissions.html" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-50 font-medium text-xs transition">
+          <span>🔑</span> <span>Policy & Permissions</span>
+        </a>
+      </nav>
+    </div>
+
+    <!-- Bottom User Profile Switcher -->
+    <div class="border-t border-slate-100 pt-4 px-2 flex items-center justify-between">
+      <div class="flex items-center space-x-3 overflow-hidden">
+        <div class="w-8 h-8 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center text-xs shrink-0" id="avatarInitial">U</div>
+        <div class="truncate">
+          <p class="text-xs font-bold text-slate-900 truncate" id="userNameDisplay">User</p>
+          <p class="text-[10px] text-slate-400 truncate" id="userRoleDisplay">Role</p>
+        </div>
+      </div>
+      <button id="logoutBtn" title="Sign Out" class="text-slate-400 hover:text-red-600 text-sm font-bold">↵</button>
+    </div>
+  </aside>
+
+  <!-- MAIN WRAPPER -->
+  <div class="flex-1 flex flex-col min-w-0 overflow-y-auto">
     
-    <!-- Top Stat Summary Bar -->
-    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 card-shadow flex justify-between items-center">
-        <div>
-          <p class="text-xs text-slate-500 font-medium">Annual Leave Balance</p>
-          <h3 class="text-2xl font-bold text-slate-800 mt-1">12 Days</h3>
-        </div>
-        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">🌴</div>
+    <!-- Top Bar -->
+    <header class="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shrink-0">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">Compliance & Employee Overview</h2>
+        <p class="text-xs text-slate-400">Real-time statutory leave entitlements and module authorizations</p>
       </div>
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 card-shadow flex justify-between items-center">
-        <div>
-          <p class="text-xs text-slate-500 font-medium">Sick Leave Remaining</p>
-          <h3 class="text-2xl font-bold text-slate-800 mt-1">10 Days</h3>
-        </div>
-        <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">🩺</div>
+      <div class="flex space-x-3">
+        <a href="modules/leave.html" class="px-4 py-2 accent-coral text-white text-xs font-bold rounded-xl shadow-sm hover:opacity-90 transition">
+          + Request Leave
+        </a>
       </div>
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 card-shadow flex justify-between items-center">
-        <div>
-          <p class="text-xs text-slate-500 font-medium">Team Approvals Pending</p>
-          <h3 class="text-2xl font-bold font-mono text-slate-800 mt-1" id="pendingApprovalsCount">0</h3>
-        </div>
-        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">⏳</div>
-      </div>
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 card-shadow flex justify-between items-center">
-        <div>
-          <p class="text-xs text-slate-500 font-medium">Compliance Health</p>
-          <h3 class="text-2xl font-bold text-emerald-600 mt-1">100%</h3>
-        </div>
-        <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">🛡️</div>
-      </div>
-    </section>
+    </header>
 
-    <!-- App Modules Grid -->
-    <section>
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-lg font-bold text-slate-900">Your Enterprise Apps</h2>
-        <span class="text-xs text-slate-400">Based on assigned role permissions</span>
-      </div>
+    <!-- Content Dashboard Grid -->
+    <div class="p-8 grid grid-cols-1 xl:grid-cols-3 gap-8">
       
-      <div id="moduleGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <!-- Dynamic Module Cards Render Here -->
+      <!-- CENTER CONTENT (2 Columns wide) -->
+      <div class="xl:col-span-2 space-y-8">
+        
+        <!-- Statutory Entitlement Balances Cards -->
+        <div>
+          <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Statutory Leave Entitlements</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            
+            <div class="bg-white p-5 rounded-2xl card-border space-y-3">
+              <div class="flex justify-between items-center">
+                <span class="text-xs font-semibold text-slate-500">Annual Leave</span>
+                <span class="text-xs bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-lg">12 Left</span>
+              </div>
+              <p class="text-3xl font-extrabold text-slate-900">14 <span class="text-xs text-slate-400 font-normal">/ 26 days</span></p>
+              <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div class="bg-emerald-500 h-full" style="width: 53%;"></div>
+              </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl card-border space-y-3">
+              <div class="flex justify-between items-center">
+                <span class="text-xs font-semibold text-slate-500">Sick Leave</span>
+                <span class="text-xs bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-lg">10 Left</span>
+              </div>
+              <p class="text-3xl font-extrabold text-slate-900">2 <span class="text-xs text-slate-400 font-normal">/ 12 days</span></p>
+              <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div class="bg-blue-500 h-full" style="width: 16%;"></div>
+              </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl card-border space-y-3">
+              <div class="flex justify-between items-center">
+                <span class="text-xs font-semibold text-slate-500">Maternity/Paternity</span>
+                <span class="text-xs bg-purple-50 text-purple-700 font-bold px-2 py-0.5 rounded-lg">Available</span>
+              </div>
+              <p class="text-3xl font-extrabold text-slate-900">90 <span class="text-xs text-slate-400 font-normal">days total</span></p>
+              <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div class="bg-purple-500 h-full" style="width: 0%;"></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Authorized Modules Grid -->
+        <div>
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Enterprise SaaS Modules</h3>
+            <span class="text-xs text-slate-400">Dynamic RBAC Access</span>
+          </div>
+          <div id="moduleGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Dynamic Module Cards Render Here -->
+          </div>
+        </div>
+
       </div>
-    </section>
-  </main>
+
+      <!-- RIGHT SIDEBAR (1 Column wide) -->
+      <div class="space-y-8">
+        
+        <!-- Pending Action Item Feed -->
+        <div class="bg-white p-6 rounded-2xl card-border space-y-4">
+          <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+            <h3 class="font-bold text-slate-900 text-sm">Action Items</h3>
+            <span class="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full" id="actionCount">0 Pending</span>
+          </div>
+          <div class="space-y-3" id="actionFeed">
+            <p class="text-xs text-slate-400">No pending approvals required.</p>
+          </div>
+        </div>
+
+        <!-- Compliance Health Widget -->
+        <div class="bg-white p-6 rounded-2xl card-border space-y-4">
+          <h3 class="font-bold text-slate-900 text-sm">Company Compliance</h3>
+          <div class="space-y-3">
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-500">Statutory Leave Policies</span>
+              <span class="font-bold text-emerald-600">✓ Compliant</span>
+            </div>
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-500">Role Permissions Audit</span>
+              <span class="font-bold text-emerald-600">✓ Enforced</span>
+            </div>
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-500">Employee Onboarding Logs</span>
+              <span class="font-bold text-emerald-600">✓ Active</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
 
   <script src="config.js"></script>
   <script>
@@ -82,7 +176,7 @@
       const { data: { user } } = await supabaseClient.auth.getUser();
       if (!user) { window.location.href = 'index.html'; return; }
 
-      // Get user profile details
+      // Get profile info
       const { data: profile } = await supabaseClient
         .from('saas_users')
         .select('full_name, email, saas_tenants(company_name)')
@@ -90,19 +184,21 @@
         .single();
 
       if (profile) {
-        document.getElementById('userNameDisplay').textContent = profile.full_name || profile.email;
+        const name = profile.full_name || profile.email;
+        document.getElementById('userNameDisplay').textContent = name;
+        document.getElementById('avatarInitial').textContent = name.charAt(0).toUpperCase();
         document.getElementById('companyDisplay').textContent = profile.saas_tenants?.company_name || 'VO-SaaS System';
       }
 
-      // Query allowed modules using our stored procedure
-      const { data: userModules, error } = await supabaseClient.rpc('get_user_modules');
+      // Fetch user's allowed modules
+      const { data: userModules } = await supabaseClient.rpc('get_user_modules');
 
       const allModules = [
-        { code: 'MODULE_LEAVE_APP', name: 'Leave Application & Approvals', icon: '📅', url: 'modules/leave.html', desc: 'Apply for leave, view entitlement balances, and approve direct report requests.' },
-        { code: 'MODULE_KPI_PERF', name: 'KPI & Performance Management', icon: '📊', url: '#', desc: 'Track quarterly objectives, self-assess performance, and conduct manager reviews.' },
-        { code: 'MODULE_HR_ONBOARD', name: 'HR Employee Onboarding', icon: '👤', url: 'modules/hr-onboard.html', desc: 'Provision new employee profiles, assign corporate roles, and send onboarding tasks.' },
-        { code: 'MODULE_TECH_SUPPORT', name: 'Tech Support Console', icon: '🛠️', url: '#', desc: 'Reset staff credentials, manage system configurations, and audit device logs.' },
-        { code: 'MODULE_OWNER_CONSOLE', name: 'SaaS Policy & Permissions Matrix', icon: '🔑', url: 'owner/permissions.html', desc: 'Configure tenant subscription modules and edit role-level access policies live.' }
+        { code: 'MODULE_LEAVE_APP', name: 'Leave Application & Approvals', icon: '📅', url: 'modules/leave.html', desc: 'Apply for time off and review team approval requests.' },
+        { code: 'MODULE_KPI_PERF', name: 'KPI & Performance Management', icon: '📊', url: '#', desc: 'Track objectives and complete performance evaluations.' },
+        { code: 'MODULE_HR_ONBOARD', name: 'HR Employee Onboarding', icon: '👤', url: 'modules/hr-onboard.html', desc: 'Add new staff profiles and manage client roles.' },
+        { code: 'MODULE_TECH_SUPPORT', name: 'Tech Support Console', icon: '🛠️', url: '#', desc: 'Reset staff credentials and manage configurations.' },
+        { code: 'MODULE_OWNER_CONSOLE', name: 'SaaS Policy & Permissions Matrix', icon: '🔑', url: 'owner/permissions.html', desc: 'Manage module subscriptions and role access policies.' }
       ];
 
       const allowedCodes = (userModules || []).map(m => m.module_code);
@@ -112,31 +208,27 @@
       allModules.forEach(mod => {
         const isActive = allowedCodes.includes(mod.code);
         const card = document.createElement('div');
-        card.className = `p-6 rounded-2xl border transition card-shadow flex flex-col justify-between ${
-          isActive 
-            ? 'bg-white border-slate-200 hover:border-slate-300' 
-            : 'bg-slate-50 border-slate-200 opacity-60'
+        card.className = `p-5 rounded-2xl border transition flex flex-col justify-between ${
+          isActive ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-50 border-slate-200 opacity-60'
         }`;
 
         card.innerHTML = `
           <div>
-            <div class="flex justify-between items-start mb-4">
-              <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
-                isActive ? 'bg-slate-100' : 'bg-slate-200'
-              }">${mod.icon}</div>
-              <span class="text-xs px-2.5 py-1 rounded-full font-semibold ${
+            <div class="flex justify-between items-center mb-3">
+              <span class="text-2xl">${mod.icon}</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-md ${
                 isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
               }">
                 ${isActive ? 'Active' : 'Locked'}
               </span>
             </div>
-            <h3 class="font-bold text-slate-900 text-base mb-1">${mod.name}</h3>
-            <p class="text-xs text-slate-500 leading-relaxed mb-6">${mod.desc}</p>
+            <h4 class="font-bold text-slate-900 text-sm mb-1">${mod.name}</h4>
+            <p class="text-xs text-slate-500 leading-relaxed mb-4">${mod.desc}</p>
           </div>
           ${
             isActive 
-              ? `<a href="${mod.url}" class="w-full text-center py-2.5 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition">Launch App</a>`
-              : `<button disabled class="w-full text-center py-2.5 bg-slate-200 text-slate-400 rounded-xl text-xs font-semibold cursor-not-allowed">Access Restricted</button>`
+              ? `<a href="${mod.url}" class="w-full text-center py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition">Launch Module</a>`
+              : `<button disabled class="w-full text-center py-2 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed">Restricted</button>`
           }
         `;
         grid.appendChild(card);
