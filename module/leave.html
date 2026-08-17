@@ -116,33 +116,39 @@
     let currentUser = null;
     let tenantId = null;
 
-    async function initLeaveModule() {
-      const { data: { user } } = await supabaseClient.auth.getUser();
-      if (!user) { window.location.href = '../index.html'; return; }
-      currentUser = user;
+   async function initLeaveModule() {
+  // Use getSession() instead of getUser() to check active local session
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  
+  if (!session) { 
+    window.location.href = '../index.html'; 
+    return; 
+  }
+  
+  currentUser = session.user;
 
-      // 1. Fetch user's tenant & check if they have direct reports
-      const [profileRes, directReportsRes] = await Promise.all([
-        supabaseClient.from('saas_users').select('tenant_id').eq('user_id', user.id).single(),
-        supabaseClient.from('saas_users').select('user_id').eq('manager_id', user.id)
-      ]);
+  // 1. Fetch user's tenant & check for direct reports
+  const [profileRes, directReportsRes] = await Promise.all([
+    supabaseClient.from('saas_users').select('tenant_id').eq('user_id', currentUser.id).single(),
+    supabaseClient.from('saas_users').select('user_id').eq('manager_id', currentUser.id)
+  ]);
 
-      tenantId = profileRes.data?.tenant_id;
-      const directReports = directReportsRes.data || [];
-      const hasDirectReports = directReports.length > 0;
+  tenantId = profileRes.data?.tenant_id;
+  const directReports = directReportsRes.data || [];
+  const hasDirectReports = directReports.length > 0;
 
-      const subtitle = document.getElementById('roleSubtitle');
+  const subtitle = document.getElementById('roleSubtitle');
 
-      if (hasDirectReports) {
-        subtitle.textContent = `People Manager (${directReports.length} direct report${directReports.length > 1 ? 's' : ''})`;
-        document.getElementById('managerSection').classList.remove('hidden');
-        loadTeamApprovals(directReports.map(r => r.user_id));
-      } else {
-        subtitle.textContent = 'Individual Contributor Access';
-      }
+  if (hasDirectReports) {
+    subtitle.textContent = `People Manager (${directReports.length} direct report${directReports.length > 1 ? 's' : ''})`;
+    document.getElementById('managerSection').classList.remove('hidden');
+    loadTeamApprovals(directReports.map(r => r.user_id));
+  } else {
+    subtitle.textContent = 'Individual Contributor Access';
+  }
 
-      loadPersonalHistory();
-    }
+  loadPersonalHistory();
+}
 
     // Submit Leave
     document.getElementById('leaveForm').addEventListener('submit', async (e) => {
@@ -232,13 +238,23 @@
     }
 
     async function updateStatus(requestId, newStatus) {
-      await supabaseClient
-        .from('leave_requests')
-        .update({ status: newStatus, reviewer_id: currentUser.id })
-        .eq('request_id', requestId);
+  await supabaseClient
+    .from('leave_requests')
+    .update({ status: newStatus, reviewer_id: currentUser.id })
+    .eq('request_id', requestId);
 
-      initLeaveModule();
-    }
+  // Reload history and approvals without re-triggering auth checks
+  loadPersonalHistory();
+  
+  const { data: directReports } = await supabaseClient
+    .from('saas_users')
+    .select('user_id')
+    .eq('manager_id', currentUser.id);
+    
+  if (directReports && directReports.length > 0) {
+    loadTeamApprovals(directReports.map(r => r.user_id));
+  }
+}
 
     initLeaveModule();
   </script>
