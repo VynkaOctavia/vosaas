@@ -172,68 +172,74 @@
 
   <script src="config.js"></script>
   <script>
-    async function loadHub() {
-      const { data: { user } } = await supabaseClient.auth.getUser();
-      if (!user) { window.location.href = 'index.html'; return; }
+   async function loadHub() {
+  // 1. Safe Local Storage Session Check (Prevents Redirect Loop)
+  const { data: { session }, error } = await supabaseClient.auth.getSession();
+  if (error || !session) { 
+    window.location.href = 'index.html'; 
+    return; 
+  }
 
-      // Get profile info
-      const { data: profile } = await supabaseClient
-        .from('saas_users')
-        .select('full_name, email, saas_tenants(company_name)')
-        .eq('user_id', user.id)
-        .single();
+  const currentUser = session.user;
 
-      if (profile) {
-        const name = profile.full_name || profile.email;
-        document.getElementById('userNameDisplay').textContent = name;
-        document.getElementById('avatarInitial').textContent = name.charAt(0).toUpperCase();
-        document.getElementById('companyDisplay').textContent = profile.saas_tenants?.company_name || 'VO-SaaS System';
+  // 2. Fetch Profile Info
+  const { data: profile } = await supabaseClient
+    .from('saas_users')
+    .select('full_name, email, saas_tenants(company_name)')
+    .eq('user_id', currentUser.id)
+    .maybeSingle();
+
+  if (profile) {
+    const name = profile.full_name || profile.email;
+    document.getElementById('userNameDisplay').textContent = name;
+    document.getElementById('avatarInitial').textContent = name.charAt(0).toUpperCase();
+    document.getElementById('companyDisplay').textContent = profile.saas_tenants?.company_name || 'VO-SaaS Owner';
+  }
+
+  // 3. Fetch Authorized Modules
+  const { data: userModules } = await supabaseClient.rpc('get_user_modules');
+
+  const allModules = [
+    { code: 'MODULE_LEAVE_APP', name: 'Leave Application & Approvals', icon: '📅', url: 'modules/leave.html', desc: 'Apply for time off and review team approval requests.' },
+    { code: 'MODULE_KPI_PERF', name: 'KPI & Performance Management', icon: '📊', url: '#', desc: 'Track objectives and complete performance evaluations.' },
+    { code: 'MODULE_HR_ONBOARD', name: 'HR Employee Onboarding', icon: '👤', url: 'modules/hr-onboard.html', desc: 'Add new staff profiles and manage client roles.' },
+    { code: 'MODULE_TECH_SUPPORT', name: 'Tech Support Console', icon: '🛠️', url: '#', desc: 'Reset staff credentials and manage configurations.' },
+    { code: 'MODULE_OWNER_CONSOLE', name: 'SaaS Policy & Permissions Matrix', icon: '🔑', url: 'owner/permissions.html', desc: 'Manage module subscriptions and role access policies.' }
+  ];
+
+  const allowedCodes = (userModules || []).map(m => m.module_code);
+  const grid = document.getElementById('moduleGrid');
+  grid.innerHTML = '';
+
+  allModules.forEach(mod => {
+    const isActive = allowedCodes.includes(mod.code);
+    const card = document.createElement('div');
+    card.className = `p-5 rounded-2xl border transition flex flex-col justify-between ${
+      isActive ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-50 border-slate-200 opacity-60'
+    }`;
+
+    card.innerHTML = `
+      <div>
+        <div class="flex justify-between items-center mb-3">
+          <span class="text-2xl">${mod.icon}</span>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-md ${
+            isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+          }">
+            ${isActive ? 'Active' : 'Locked'}
+          </span>
+        </div>
+        <h4 class="font-bold text-slate-900 text-sm mb-1">${mod.name}</h4>
+        <p class="text-xs text-slate-500 leading-relaxed mb-4">${mod.desc}</p>
+      </div>
+      ${
+        isActive 
+          ? `<a href="${mod.url}" class="w-full text-center py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition">Launch Module</a>`
+          : `<button disabled class="w-full text-center py-2 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed">Access Restricted</button>`
       }
-
-      // Fetch user's allowed modules
-      const { data: userModules } = await supabaseClient.rpc('get_user_modules');
-
-      const allModules = [
-        { code: 'MODULE_LEAVE_APP', name: 'Leave Application & Approvals', icon: '📅', url: 'modules/leave.html', desc: 'Apply for time off and review team approval requests.' },
-        { code: 'MODULE_KPI_PERF', name: 'KPI & Performance Management', icon: '📊', url: '#', desc: 'Track objectives and complete performance evaluations.' },
-        { code: 'MODULE_HR_ONBOARD', name: 'HR Employee Onboarding', icon: '👤', url: 'modules/hr-onboard.html', desc: 'Add new staff profiles and manage client roles.' },
-        { code: 'MODULE_TECH_SUPPORT', name: 'Tech Support Console', icon: '🛠️', url: '#', desc: 'Reset staff credentials and manage configurations.' },
-        { code: 'MODULE_OWNER_CONSOLE', name: 'SaaS Policy & Permissions Matrix', icon: '🔑', url: 'owner/permissions.html', desc: 'Manage module subscriptions and role access policies.' }
-      ];
-
-      const allowedCodes = (userModules || []).map(m => m.module_code);
-      const grid = document.getElementById('moduleGrid');
-      grid.innerHTML = '';
-
-      allModules.forEach(mod => {
-        const isActive = allowedCodes.includes(mod.code);
-        const card = document.createElement('div');
-        card.className = `p-5 rounded-2xl border transition flex flex-col justify-between ${
-          isActive ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-50 border-slate-200 opacity-60'
-        }`;
-
-        card.innerHTML = `
-          <div>
-            <div class="flex justify-between items-center mb-3">
-              <span class="text-2xl">${mod.icon}</span>
-              <span class="text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
-              }">
-                ${isActive ? 'Active' : 'Locked'}
-              </span>
-            </div>
-            <h4 class="font-bold text-slate-900 text-sm mb-1">${mod.name}</h4>
-            <p class="text-xs text-slate-500 leading-relaxed mb-4">${mod.desc}</p>
-          </div>
-          ${
-            isActive 
-              ? `<a href="${mod.url}" class="w-full text-center py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition">Launch Module</a>`
-              : `<button disabled class="w-full text-center py-2 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed">Restricted</button>`
-          }
-        `;
-        grid.appendChild(card);
-      });
-    }
+    `;
+    grid.appendChild(card);
+  });
+}
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       await supabaseClient.auth.signOut();
