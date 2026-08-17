@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hub - Project VO-SaaS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { background-color: #FDFBF7; color: #1D1E2C; }
+  </style>
+</head>
+<body class="p-6 md:p-12">
+  <div class="max-w-6xl mx-auto">
+    <header class="flex justify-between items-center mb-10 pb-4 border-b border-gray-200">
+      <div>
+        <h1 class="text-2xl font-bold">Employee Module Portal</h1>
+        <p class="text-sm text-gray-500">Access your subscribed corporate tools</p>
+      </div>
+      <button id="logoutBtn" class="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100">Sign Out</button>
+    </header>
+
+    <div id="moduleGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Dynamic modules render here -->
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    async function loadHub() {
+      // Confirm authenticated user
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (!user) {
+        window.location.href = 'index.html';
+        return;
+      }
+
+      // Call the Option 2 Postgres Function
+      const { data: modules, error } = await supabaseClient.rpc('get_user_modules');
+
+      const grid = document.getElementById('moduleGrid');
+      grid.innerHTML = '';
+
+      if (error) {
+        grid.innerHTML = `<p class="text-red-500">Error loading modules: ${error.message}</p>`;
+        return;
+      }
+
+      modules.forEach(mod => {
+        const isActive = mod.access_status === 'ACTIVE';
+        
+        const card = document.createElement('div');
+        card.className = `p-6 rounded-xl border transition-all duration-200 ${
+          isActive 
+            ? 'bg-white border-gray-200 shadow-sm hover:shadow-md cursor-pointer' 
+            : 'bg-gray-100 border-gray-200 opacity-60 cursor-not-allowed'
+        }`;
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-lg ${isActive ? 'text-gray-800' : 'text-gray-400'}">${mod.module_name}</h3>
+            <span class="text-xs font-semibold px-2 py-1 rounded ${
+              isActive ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'
+            }">
+              ${mod.access_status}
+            </span>
+          </div>
+          <p class="text-sm ${isActive ? 'text-gray-600' : 'text-gray-400'} mb-4">${mod.description || ''}</p>
+        `;
+
+        if (isActive) {
+          card.addEventListener('click', () => {
+            window.location.href = mod.route_path;
+          });
+        }
+
+        grid.appendChild(card);
+      });
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await supabaseClient.auth.signOut();
+      window.location.href = 'index.html';
+    });
+
+    loadHub();
+  </script>
+</body>
+</html>
