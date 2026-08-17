@@ -24,7 +24,7 @@
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
     
-    <!-- Apply Leave Form (Visible to Everyone) -->
+    <!-- Apply Leave Form -->
     <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
       <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">Submit Request</h2>
       
@@ -63,7 +63,7 @@
     <!-- Right Side: History & Conditional Approvals Queue -->
     <div class="lg:col-span-2 space-y-8">
       
-      <!-- Manager Approval Queue (HIDDEN BY DEFAULT for Individual Contributors) -->
+      <!-- Manager Approval Queue (Hidden by default) -->
       <div id="managerSection" class="hidden bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <div class="flex justify-between items-center border-b border-slate-100 pb-3">
           <h2 class="text-lg font-bold text-slate-900">Direct Reports Approval Queue</h2>
@@ -116,41 +116,44 @@
     let currentUser = null;
     let tenantId = null;
 
-   async function initLeaveModule() {
-  // Use getSession() instead of getUser() to check active local session
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  
-  if (!session) { 
-    window.location.href = '../index.html'; 
-    return; 
-  }
-  
-  currentUser = session.user;
+    async function initLeaveModule() {
+      // 1. Session Validation
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      
+      if (!session) { 
+        window.location.href = '../index.html'; 
+        return; 
+      }
+      
+      currentUser = session.user;
 
-  // 1. Fetch user's tenant & check for direct reports
-  const [profileRes, directReportsRes] = await Promise.all([
-    supabaseClient.from('saas_users').select('tenant_id').eq('user_id', currentUser.id).single(),
-    supabaseClient.from('saas_users').select('user_id').eq('manager_id', currentUser.id)
-  ]);
+      // 2. Safe Profile Fetch (Avoid single() throwing errors on unmapped users)
+      const [profileRes, directReportsRes] = await Promise.all([
+        supabaseClient.from('saas_users').select('tenant_id, full_name').eq('user_id', currentUser.id).maybeSingle(),
+        supabaseClient.from('saas_users').select('user_id').eq('manager_id', currentUser.id)
+      ]);
 
-  tenantId = profileRes.data?.tenant_id;
-  const directReports = directReportsRes.data || [];
-  const hasDirectReports = directReports.length > 0;
+      // Fallback tenant ID for Super Admins / Unmapped UAT Accounts
+      tenantId = profileRes.data?.tenant_id || 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
-  const subtitle = document.getElementById('roleSubtitle');
+      const directReports = directReportsRes.data || [];
+      const hasDirectReports = directReports.length > 0;
 
-  if (hasDirectReports) {
-    subtitle.textContent = `People Manager (${directReports.length} direct report${directReports.length > 1 ? 's' : ''})`;
-    document.getElementById('managerSection').classList.remove('hidden');
-    loadTeamApprovals(directReports.map(r => r.user_id));
-  } else {
-    subtitle.textContent = 'Individual Contributor Access';
-  }
+      const subtitle = document.getElementById('roleSubtitle');
 
-  loadPersonalHistory();
-}
+      if (hasDirectReports) {
+        subtitle.textContent = `People Manager (${directReports.length} direct report${directReports.length > 1 ? 's' : ''})`;
+        document.getElementById('managerSection').classList.remove('hidden');
+        loadTeamApprovals(directReports.map(r => r.user_id));
+      } else {
+        subtitle.textContent = 'Individual Contributor Access';
+        document.getElementById('managerSection').classList.add('hidden');
+      }
 
-    // Submit Leave
+      loadPersonalHistory();
+    }
+
+    // Submit Leave Form
     document.getElementById('leaveForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const leave_type = document.getElementById('leaveType').value;
@@ -160,9 +163,9 @@
 
       const d1 = new Date(start_date);
       const d2 = new Date(end_date);
-      const total_days = Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+      const total_days = Math.max(1, Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
 
-      await supabaseClient.from('leave_requests').insert([{
+      const { error } = await supabaseClient.from('leave_requests').insert([{
         tenant_id: tenantId,
         user_id: currentUser.id,
         leave_type,
@@ -173,11 +176,16 @@
         status: 'PENDING'
       }]);
 
+      if (error) {
+        alert('Failed to submit leave request: ' + error.message);
+        return;
+      }
+
       document.getElementById('leaveForm').reset();
       loadPersonalHistory();
     });
 
-    // Personal History
+    // Load Personal Leave Requests History
     async function loadPersonalHistory() {
       const { data } = await supabaseClient
         .from('leave_requests')
@@ -188,10 +196,15 @@
       const tbody = document.getElementById('historyTable');
       tbody.innerHTML = '';
 
-      (data || []).forEach(r => {
+      if (!data || data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-400">No leave records found.</td></tr>`;
+        return;
+      }
+
+      data.forEach(r => {
         const row = document.createElement('tr');
         row.innerHTML = `
-          <td class="p-3 font-semibold">${r.leave_type}</td>
+          <td class="p-3 font-semibold text-slate-800">${r.leave_type}</td>
           <td class="p-3">${r.start_date} to ${r.end_date}</td>
           <td class="p-3 font-mono">${r.total_days}d</td>
           <td class="p-3">
@@ -205,11 +218,11 @@
       });
     }
 
-    // Manager Team Approvals Queue
+    // Load Team Member Requests for Approvals (Explicit Relationship Path)
     async function loadTeamApprovals(reportUserIds) {
-      const { data } = await supabaseClient
+      const { data, error } = await supabaseClient
         .from('leave_requests')
-        .select('*, saas_users(full_name, email)')
+        .select('*, saas_users!leave_requests_user_id_fkey(full_name, email)')
         .in('user_id', reportUserIds)
         .eq('status', 'PENDING')
         .order('created_at', { ascending: false });
@@ -217,15 +230,16 @@
       const tbody = document.getElementById('approvalsTable');
       tbody.innerHTML = '';
 
-      if (!data || data.length === 0) {
+      if (error || !data || data.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-400">No pending leave requests from your team.</td></tr>`;
         return;
       }
 
       data.forEach(r => {
+        const applicantName = r.saas_users?.full_name || r.saas_users?.email || 'Team Member';
         const row = document.createElement('tr');
         row.innerHTML = `
-          <td class="p-3 font-medium">${r.saas_users?.full_name || r.saas_users?.email}</td>
+          <td class="p-3 font-medium">${applicantName}</td>
           <td class="p-3 font-semibold">${r.leave_type}</td>
           <td class="p-3">${r.start_date} (${r.total_days}d)</td>
           <td class="p-3 space-x-1">
@@ -237,24 +251,24 @@
       });
     }
 
+    // Update Status Action
     async function updateStatus(requestId, newStatus) {
-  await supabaseClient
-    .from('leave_requests')
-    .update({ status: newStatus, reviewer_id: currentUser.id })
-    .eq('request_id', requestId);
+      await supabaseClient
+        .from('leave_requests')
+        .update({ status: newStatus, reviewer_id: currentUser.id })
+        .eq('request_id', requestId);
 
-  // Reload history and approvals without re-triggering auth checks
-  loadPersonalHistory();
-  
-  const { data: directReports } = await supabaseClient
-    .from('saas_users')
-    .select('user_id')
-    .eq('manager_id', currentUser.id);
-    
-  if (directReports && directReports.length > 0) {
-    loadTeamApprovals(directReports.map(r => r.user_id));
-  }
-}
+      loadPersonalHistory();
+      
+      const { data: directReports } = await supabaseClient
+        .from('saas_users')
+        .select('user_id')
+        .eq('manager_id', currentUser.id);
+        
+      if (directReports && directReports.length > 0) {
+        loadTeamApprovals(directReports.map(r => r.user_id));
+      }
+    }
 
     initLeaveModule();
   </script>
